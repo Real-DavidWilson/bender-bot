@@ -6,3 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+poise = "0.5.5"
+dotenv = "0.15.0"
+dotenv_codegen = "0.15.0"
+serde_json = "1.0.103"
+
+[dependencies.tokio]
+version = "1.29.1"
+features = ["rt-multi-thread", "macros"]
