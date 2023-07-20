@@ -1,28 +1,46 @@
-use dotenv_codegen::dotenv;
-use poise::{serenity_prelude::GatewayIntents, PrefixFrameworkOptions};
+use dotenv::dotenv;
+pub use dotenv_codegen::dotenv;
+use poise::Event;
+pub use poise::{ serenity_prelude::GatewayIntents, PrefixFrameworkOptions };
+use radio::player;
+use songbird::SerenityInit;
 
-use commands::*;
+mod prelude;
+use prelude::*;
 
 mod commands;
+use commands::*;
 
-pub struct Data {}
-
-pub type Error = Box<dyn std::error::Error + Send + Sync>;
-pub type Context<'a> = poise::Context<'a, Data, Error>;
-
-const DISCORD_TOKEN: &'static str = dotenv!("DISCORD_TOKEN");
+mod services;
+mod radio;
+mod utils;
+mod render;
 
 #[tokio::main]
 async fn main() {
-    let intents = GatewayIntents::non_privileged()
-        | GatewayIntents::GUILDS
-        | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::DIRECT_MESSAGES
-        | GatewayIntents::GUILD_MESSAGES;
+    dotenv().ok();
 
-    let framework = poise::Framework::builder()
+    let discord_token = dotenv!("DISCORD_TOKEN");
+
+    let intents =
+        GatewayIntents::non_privileged() |
+        GatewayIntents::GUILDS |
+        GatewayIntents::MESSAGE_CONTENT |
+        GatewayIntents::DIRECT_MESSAGES |
+        GatewayIntents::GUILD_MESSAGES;
+
+    let framework = poise::Framework
+        ::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![ping::command()],
+            commands: vec![
+                ping_command::handler(),
+                play_command::handler(),
+                resume_command::handler(),
+                pause_command::handler(),
+                playing_command::handler(),
+                queue_command::handler(),
+                skip_command::handler()
+            ],
             prefix_options: PrefixFrameworkOptions {
                 prefix: Some("+".into()),
                 mention_as_prefix: true,
@@ -30,10 +48,23 @@ async fn main() {
                 ignore_bots: true,
                 ..Default::default()
             },
+            event_handler: |_ctx, event, _framework, _data| {
+                Box::pin(async move {
+                    match event {
+                        Event::GuildCreate { guild, is_new: _ } => {
+                            player::init_player(&guild.id).await;
+                        }
+                        _ => {}
+                    }
+
+                    Ok(())
+                })
+            },
             ..Default::default()
         })
-        .token(DISCORD_TOKEN)
+        .token(discord_token)
         .intents(intents)
+        .client_settings(|client| client.register_songbird())
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
